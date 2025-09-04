@@ -1,6 +1,5 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
-
 import React, {useCallback, useState} from 'react';
 import {type LayoutChangeEvent, type StyleProp, View, type ViewStyle} from 'react-native';
 
@@ -9,8 +8,6 @@ import FormattedText from '@components/formatted_text';
 import JumboEmoji from '@components/jumbo_emoji';
 import {Screens} from '@constants';
 import {THREAD} from '@constants/screens';
-import StatusUpdatePost from '@playbooks/components/status_update_post';
-import {PLAYBOOKS_UPDATE_STATUS_POST_TYPE} from '@playbooks/constants/plugin';
 import {isEdited as postEdited, isPostFailed} from '@utils/post';
 import {makeStyleSheetFromTheme} from '@utils/theme';
 
@@ -23,7 +20,6 @@ import Reactions from './reactions';
 
 import type PostModel from '@typings/database/models/servers/post';
 import type {SearchPattern} from '@typings/global/markdown';
-import type {AvailableScreens} from '@typings/screens/navigation';
 
 type BodyProps = {
     appsEnabled: boolean;
@@ -39,11 +35,12 @@ type BodyProps = {
     isPendingOrFailed: boolean;
     isPostAcknowledgementEnabled?: boolean;
     isPostAddChannelMember: boolean;
-    location: AvailableScreens;
+    location: string;
     post: PostModel;
     searchPatterns?: SearchPattern[];
     showAddReaction?: boolean;
     theme: Theme;
+    isOwner: boolean;
 };
 
 const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
@@ -57,7 +54,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
         },
         messageBody: {
             paddingVertical: 2,
-            flex: 1,
+
         },
         messageContainer: {width: '100%'},
         replyBar: {
@@ -83,13 +80,19 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
             flexDirection: 'row',
             width: '100%',
         },
+        ownerMessage: {
+            width: '100%',
+            flexDirection: 'row-reverse',
+
+        },
+
     };
 });
 
 const Body = ({
     appsEnabled, hasFiles, hasReactions, highlight, highlightReplyBar,
     isCRTEnabled, isEphemeral, isFirstReply, isJumboEmoji, isLastReply, isPendingOrFailed, isPostAcknowledgementEnabled, isPostAddChannelMember,
-    location, post, searchPatterns, showAddReaction, theme,
+    location, post, searchPatterns, showAddReaction, theme, isOwner,
 }: BodyProps) => {
     const style = getStyleSheet(theme);
     const isEdited = postEdited(post);
@@ -99,13 +102,10 @@ const Body = ({
     let body;
     let message;
 
-    const nBindings = Array.isArray(post.props?.app_bindings) ? post.props?.app_bindings.length : 0;
-    const nAttachments = Array.isArray(post.props?.attachments) ? post.props?.attachments.length : 0;
-
     const isReplyPost = Boolean(post.rootId && (!isEphemeral || !hasBeenDeleted) && location !== THREAD);
-    const hasContent = Boolean((post.metadata?.embeds?.length || (appsEnabled && nBindings)) || nAttachments);
+    const hasContent = Boolean((post.metadata?.embeds?.length || (appsEnabled && post.props?.app_bindings?.length)) || post.props?.attachments?.length);
 
-    const replyBarStyle = useCallback((): StyleProp<ViewStyle>|undefined => {
+    const replyBarStyle = useCallback((): StyleProp<ViewStyle> | undefined => {
         if (!isReplyPost || (isCRTEnabled && location === Screens.PERMALINK)) {
             return undefined;
         }
@@ -141,14 +141,6 @@ const Body = ({
                 defaultMessage='(message deleted)'
             />
         );
-    } else if (post.type === PLAYBOOKS_UPDATE_STATUS_POST_TYPE && post.props != null) {
-        message = (
-            <StatusUpdatePost
-                location={location}
-                post={post}
-                theme={theme}
-            />
-        );
     } else if (isPostAddChannelMember) {
         message = (
             <AddMembers
@@ -165,19 +157,22 @@ const Body = ({
                 value={post.message}
             />
         );
-    } else if (post.message.length || isEdited) { // isEdited is added to handle the case where the post is edited and the message is empty
+    } else if (post.message.length) {
         message = (
-            <Message
-                highlight={highlight}
-                isEdited={isEdited}
-                isPendingOrFailed={isPendingOrFailed}
-                isReplyPost={isReplyPost}
-                layoutWidth={layoutWidth}
-                location={location}
-                post={post}
-                searchPatterns={searchPatterns}
-                theme={theme}
-            />
+            <View style={isOwner ? style.ownerMessage : null}>
+                <Message
+                    highlight={highlight}
+                    isEdited={isEdited}
+                    isPendingOrFailed={isPendingOrFailed}
+                    isReplyPost={isReplyPost}
+                    layoutWidth={layoutWidth}
+                    location={location}
+                    post={post}
+                    searchPatterns={searchPatterns}
+                    theme={theme}
+                    isOwner={isOwner}
+                />
+            </View>
         );
     }
 
@@ -186,27 +181,34 @@ const Body = ({
     if (!hasBeenDeleted) {
         body = (
             <View style={style.messageBody}>
-                {message}
+                <View style={[isOwner ? style.ownerMessage : null]}>
+                    {message}
+                </View>
+
                 {hasContent &&
-                <Content
-                    isReplyPost={isReplyPost}
-                    layoutWidth={layoutWidth}
-                    location={location}
-                    post={post}
-                    theme={theme}
-                />
+                    <Content
+                        isReplyPost={isReplyPost}
+                        layoutWidth={layoutWidth}
+                        location={location}
+                        post={post}
+                        theme={theme}
+                    />
                 }
                 {hasFiles &&
-                <Files
-                    failed={isFailed}
-                    layoutWidth={layoutWidth}
-                    location={location}
-                    post={post}
-                    isReplyPost={isReplyPost}
-                />
+                    <View style={isOwner ? style.ownerMessage : null}>
+                        <Files
+                            failed={isFailed}
+                            layoutWidth={layoutWidth}
+                            location={location}
+                            post={post}
+                            isReplyPost={isReplyPost}
+                            isOwner={isOwner}
+                        />
+                    </View>
+
                 }
                 {(acknowledgementsVisible || reactionsVisible) && (
-                    <View style={style.ackAndReactionsContainer}>
+                    <View style={[style.ackAndReactionsContainer, isOwner ? style.ownerMessage : null]}>
                         {acknowledgementsVisible && (
                             <Acknowledgements
                                 hasReactions={hasReactions}
@@ -230,16 +232,16 @@ const Body = ({
 
     return (
         <View
-            style={style.messageContainerWithReplyBar}
+            style={[style.messageContainerWithReplyBar, isOwner ? style.ownerMessage : null]}
             onLayout={onLayout}
         >
             <View style={replyBarStyle()}/>
             {body}
             {isFailed &&
-            <Failed
-                post={post}
-                theme={theme}
-            />
+                <Failed
+                    post={post}
+                    theme={theme}
+                />
             }
         </View>
     );

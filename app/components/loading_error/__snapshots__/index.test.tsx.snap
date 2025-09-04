@@ -465,7 +465,7 @@ exports[`Loading Error should match snapshot 1`] = `
           style={
             {
               "alignItems": "center",
-              "backgroundColor": "#1c58d9",
+              "backgroundColor": "#31b34b",
               "borderColor": "#2089dc",
               "borderRadius": 4,
               "borderWidth": 0,

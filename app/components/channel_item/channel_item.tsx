@@ -1,14 +1,13 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
-
-import React, {useCallback, useMemo} from 'react';
+import React, {useCallback, useEffect, useMemo} from 'react';
 import {useIntl} from 'react-intl';
-import {StyleSheet, TouchableOpacity, View} from 'react-native';
+import {DeviceEventEmitter, StyleSheet, TouchableOpacity, View} from 'react-native';
 
 import Badge from '@components/badge';
 import ChannelIcon from '@components/channel_icon';
 import CompassIcon from '@components/compass_icon';
-import {General} from '@constants';
+import {Events, General} from '@constants';
 import {HOME_PADDING} from '@constants/view';
 import {useTheme} from '@context/theme';
 import {useIsTablet} from '@hooks/device';
@@ -128,7 +127,6 @@ const ChannelItem = ({
 
     const channelName = (showChannelName && !isDMorGM(channel)) ? channel.name : '';
 
-    // Make it bolded if it has unreads or mentions
     const isBolded = isUnread || mentionsCount > 0;
     const showActive = isActive && isTablet;
 
@@ -170,7 +168,9 @@ const ChannelItem = ({
         },
         {minHeight: height},
     ], [height, showActive, styles, isOnHome]);
-
+    useEffect(() => {
+        DeviceEventEmitter.emit(Events.MESSAGE_RECIVE, {channel_name: displayName});
+    }, [mentionsCount, channel.id]);
     return (
         <TouchableOpacity onPress={handleOnPress}>
             <View
@@ -207,11 +207,11 @@ const ChannelItem = ({
                     style={[styles.badge, isMuted && styles.mutedBadge, isOnCenterBg && styles.badgeOnCenterBg]}
                 />
                 {hasCall &&
-                <CompassIcon
-                    name='phone-in-talk'
-                    size={16}
-                    style={[textStyles, styles.hasCall]}
-                />
+                    <CompassIcon
+                        name='phone-in-talk'
+                        size={16}
+                        style={[textStyles, styles.hasCall]}
+                    />
                 }
             </View>
         </TouchableOpacity>

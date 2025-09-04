@@ -1,7 +1,7 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from 'react';
+import React, {type ReactNode, useEffect, useMemo, useRef, useState} from 'react';
 import {useIntl} from 'react-intl';
 import {Keyboard, Platform, type StyleProp, View, type ViewStyle, TouchableHighlight} from 'react-native';
 
@@ -14,7 +14,6 @@ import SystemAvatar from '@components/system_avatar';
 import SystemHeader from '@components/system_header';
 import {POST_TIME_TO_FAIL} from '@constants/post';
 import * as Screens from '@constants/screens';
-import {useHideExtraKeyboardIfNeeded} from '@context/extra_keyboard';
 import {useServerUrl} from '@context/server';
 import {useTheme} from '@context/theme';
 import {useIsTablet} from '@hooks/device';
@@ -22,6 +21,7 @@ import PerformanceMetricsManager from '@managers/performance_metrics_manager';
 import {openAsBottomSheet} from '@screens/navigation';
 import {hasJumboEmojiOnly} from '@utils/emoji/helpers';
 import {fromAutoResponder, isFromWebhook, isPostFailed, isPostPendingOrFailed, isSystemMessage} from '@utils/post';
+import {preventDoubleTap} from '@utils/tap';
 import {changeOpacity, makeStyleSheetFromTheme} from '@utils/theme';
 
 import Avatar from './avatar';
@@ -36,7 +36,6 @@ import type PostModel from '@typings/database/models/servers/post';
 import type ThreadModel from '@typings/database/models/servers/thread';
 import type UserModel from '@typings/database/models/servers/user';
 import type {SearchPattern} from '@typings/global/markdown';
-import type {AvailableScreens} from '@typings/screens/navigation';
 
 type PostProps = {
     appsEnabled: boolean;
@@ -58,7 +57,7 @@ type PostProps = {
     isLastReply?: boolean;
     isPostAddChannelMember: boolean;
     isPostPriorityEnabled: boolean;
-    location: AvailableScreens;
+    location: string;
     post: PostModel;
     rootId?: string;
     previousPost?: PostModel;
@@ -84,6 +83,7 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
             marginTop: 10,
         },
         container: {flexDirection: 'row'},
+
         highlight: {backgroundColor: changeOpacity(theme.mentionHighlightBg, 0.5)},
         highlightBar: {
             backgroundColor: theme.mentionHighlightBg,
@@ -106,6 +106,9 @@ const getStyleSheet = makeStyleSheetFromTheme((theme: Theme) => {
         rightColumn: {
             flex: 1,
             flexDirection: 'column',
+        },
+        ownFooter: {
+            flexDirection: 'row-reverse',
         },
         rightColumnPadding: {paddingBottom: 3},
     };
@@ -159,6 +162,7 @@ const Post = ({
     const isCallsPost = isCallsCustomMessage(post);
     const hasBeenDeleted = (post.deleteAt !== 0);
     const isWebHook = isFromWebhook(post);
+    const isOwner = currentUser?.id === post.userId;
     const hasSameRoot = useMemo(() => {
         if (isFirstReply) {
             return false;
@@ -177,7 +181,7 @@ const Post = ({
         return false;
     }, [customEmojiNames, post.message]);
 
-    const handlePostPress = useCallback(() => {
+    const handlePostPress = () => {
         if ([Screens.SAVED_MESSAGES, Screens.MENTIONS, Screens.SEARCH, Screens.PINNED_MESSAGES].includes(location)) {
             showPermalink(serverUrl, '', post.id);
             return;
@@ -196,20 +200,19 @@ const Post = ({
         setTimeout(() => {
             pressDetected.current = false;
         }, 300);
-    }, [
-        hasBeenDeleted, isAutoResponder, isEphemeral,
-        isPendingOrFailed, isSystemPost, location, serverUrl, post,
-    ]);
+    };
 
-    const handlePress = useHideExtraKeyboardIfNeeded(() => {
+    const handlePress = preventDoubleTap(() => {
         pressDetected.current = true;
 
         if (post) {
+            Keyboard.dismiss();
+
             setTimeout(handlePostPress, 300);
         }
-    }, [handlePostPress, post]);
+    });
 
-    const showPostOptions = useHideExtraKeyboardIfNeeded(() => {
+    const showPostOptions = () => {
         if (!post) {
             return;
         }
@@ -233,15 +236,11 @@ const Post = ({
             title,
             props: passProps,
         });
-    }, [
-        canDelete, hasBeenDeleted, intl,
-        isEphemeral, isPendingOrFailed, isTablet, isSystemPost,
-        location, post, serverUrl, showAddReaction, theme,
-    ]);
+    };
 
     const [, rerender] = useState(false);
     useEffect(() => {
-        let t: NodeJS.Timeout|undefined;
+        let t: NodeJS.Timeout | undefined;
         if (post.pendingPostId === post.id && !isFailed) {
             t = setTimeout(() => rerender(true), POST_TIME_TO_FAIL - (Date.now() - post.updateAt));
         }
@@ -293,26 +292,41 @@ const Post = ({
         consecutiveStyle = styles.consecutive;
         postAvatar = <View style={styles.consecutivePostContainer}/>;
     } else {
-        postAvatar = (
-            <View style={[styles.profilePictureContainer, pendingPostStyle]}>
-                {(isAutoResponder || isSystemPost) ? (
-                    <SystemAvatar theme={theme}/>
-                ) : (
-                    <Avatar
-                        isAutoReponse={isAutoResponder}
-                        location={location}
-                        post={post}
-                    />
-                )}
-            </View>
-        );
+        if (!isOwner) {
+            postAvatar = (
+                <View style={[styles.profilePictureContainer, pendingPostStyle]}>
+                    {(isAutoResponder || isSystemPost) ? (
+                        <SystemAvatar theme={theme}/>
+                    ) : (
+                        <Avatar
+                            isAutoReponse={isAutoResponder}
+                            location={location}
+                            post={post}
+                        />
+                    )}
+                </View>
+            );
+        }
+
+        // postAvatar = (
+        //     <View style={[styles.profilePictureContainer, pendingPostStyle]}>
+        //         {(isAutoResponder || isSystemPost) ? (
+        //             <SystemAvatar theme={theme}/>
+        //         ) : (
+        //             <Avatar
+        //                 isAutoReponse={isAutoResponder}
+        //                 location={location}
+        //                 post={post}
+        //             />
+        //         )}
+        //     </View>
+        // );
 
         if (isSystemPost && !isAutoResponder) {
             header = (
                 <SystemHeader
                     createAt={post.createAt}
                     theme={theme}
-                    isEphemeral={isEphemeral}
                 />
             );
         } else {
@@ -377,6 +391,7 @@ const Post = ({
                 searchPatterns={searchPatterns}
                 showAddReaction={showAddReaction}
                 theme={theme}
+                isOwner={isOwner}
             />
         );
     }
@@ -386,11 +401,13 @@ const Post = ({
     if (isCRTEnabled && thread && location !== Screens.THREAD && !(rootId && location === Screens.PERMALINK)) {
         if (thread.replyCount > 0 || thread.isFollowing) {
             footer = (
-                <Footer
-                    channelId={post.channelId}
-                    location={location}
-                    thread={thread}
-                />
+                <View style={isOwner ? styles.ownFooter : null}>
+                    <Footer
+                        channelId={post.channelId}
+                        location={location}
+                        thread={thread}
+                    />
+                </View>
             );
         }
         if (thread.unreadMentions || thread.unreadReplies) {
@@ -424,7 +441,7 @@ const Post = ({
                     <View style={[styles.container, consecutiveStyle]}>
                         {postAvatar}
                         <View style={rightColumnStyle}>
-                            {header}
+                            {isOwner ? <></> : header}
                             {body}
                             {footer}
                         </View>

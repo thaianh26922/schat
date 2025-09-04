@@ -1,39 +1,41 @@
 // Copyright (c) 2015-present Mattermost, Inc. All Rights Reserved.
 // See LICENSE.txt for license information.
 
-import React, {useCallback, useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useState} from 'react';
 import {DeviceEventEmitter, type StyleProp, StyleSheet, View, type ViewStyle} from 'react-native';
-import Animated from 'react-native-reanimated';
+import Animated, {useDerivedValue} from 'react-native-reanimated';
 
 import {Events} from '@constants';
 import {GalleryInit} from '@context/gallery';
 import {useIsTablet} from '@hooks/device';
 import {useImageAttachments} from '@hooks/files';
-import {usePreventDoubleTap} from '@hooks/utils';
 import {isImage, isVideo} from '@utils/file';
 import {fileToGalleryItem, openGalleryAtIndex} from '@utils/gallery';
 import {getViewPortWidth} from '@utils/images';
+import {preventDoubleTap} from '@utils/tap';
 
 import File from './file';
 
 type FilesProps = {
     canDownloadFiles: boolean;
-    enableSecureFilePreview: boolean;
     failed?: boolean;
     filesInfo: FileInfo[];
     layoutWidth?: number;
     location: string;
     isReplyPost: boolean;
-    postId?: string;
-    postProps?: Record<string, unknown>;
+    postId: string;
+    postProps: Record<string, any>;
+    publicLinkEnabled: boolean;
+    isOwner: boolean;
 }
 
 const MAX_VISIBLE_ROW_IMAGES = 4;
 const styles = StyleSheet.create({
     row: {
-        flex: 1,
-        flexDirection: 'row',
+        width: '100%',
         marginTop: 5,
+        flexDirection: 'row',
+
     },
     container: {
         flex: 1,
@@ -47,40 +49,36 @@ const styles = StyleSheet.create({
     marginTop: {
         marginTop: 10,
     },
+    ownMessage: {
+        width: '100%',
+        marginTop: 5,
+        flexDirection: 'row-reverse',
+    },
 });
 
-const Files = ({
-    canDownloadFiles,
-    enableSecureFilePreview,
-    failed,
-    filesInfo,
-    isReplyPost,
-    layoutWidth,
-    location,
-    postId,
-    postProps,
-}: FilesProps) => {
+const Files = ({canDownloadFiles, failed, filesInfo, isReplyPost, layoutWidth, location, postId, postProps, publicLinkEnabled, isOwner}: FilesProps) => {
     const galleryIdentifier = `${postId}-fileAttachments-${location}`;
     const [inViewPort, setInViewPort] = useState(false);
     const isTablet = useIsTablet();
 
-    const {images: imageAttachments, nonImages: nonImageAttachments} = useImageAttachments(filesInfo);
-    const [filesForGallery, setFilesForGallery] = useState(() => [...imageAttachments, ...nonImageAttachments]);
+    const {images: imageAttachments, nonImages: nonImageAttachments} = useImageAttachments(filesInfo, publicLinkEnabled);
+
+    const filesForGallery = useDerivedValue(() => imageAttachments.concat(nonImageAttachments),
+        [imageAttachments, nonImageAttachments]);
 
     const attachmentIndex = (fileId: string) => {
-        return filesForGallery.findIndex((file) => file.id === fileId) || 0;
+        return filesForGallery.value.findIndex((file) => file.id === fileId) || 0;
     };
 
-    const handlePreviewPress = usePreventDoubleTap(useCallback((idx: number) => {
-        const items = filesForGallery.map((f) => fileToGalleryItem(f, f.user_id, postProps));
+    const handlePreviewPress = preventDoubleTap((idx: number) => {
+        const items = filesForGallery.value.map((f) => fileToGalleryItem(f, f.user_id, postProps));
         openGalleryAtIndex(galleryIdentifier, idx, items);
-    }, [filesForGallery, galleryIdentifier, postProps]));
+    });
 
-    const updateFileForGallery = useCallback((idx: number, file: FileInfo) => {
-        const newFilesForGallery = [...filesForGallery];
-        newFilesForGallery[idx] = file;
-        setFilesForGallery(newFilesForGallery);
-    }, [filesForGallery]);
+    const updateFileForGallery = (idx: number, file: FileInfo) => {
+        'worklet';
+        filesForGallery.value[idx] = file;
+    };
 
     const isSingleImage = useMemo(() => filesInfo.filter((f) => isImage(f) || isVideo(f)).length === 1, [filesInfo]);
 
@@ -88,7 +86,6 @@ const Files = ({
         let nonVisibleImagesCount: number;
         let container: StyleProp<ViewStyle> = items.length > 1 ? styles.container : undefined;
         const containerWithGutter = [container, styles.gutter];
-        const wrapperWidth = getViewPortWidth(isReplyPost, isTablet) - 6;
 
         return items.map((file, idx) => {
             if (moreImagesCount && idx === MAX_VISIBLE_ROW_IMAGES - 1) {
@@ -100,22 +97,21 @@ const Files = ({
             }
             return (
                 <View
-                    style={[container, styles.marginTop]}
-                    testID={`${file.id}-file-container`}
+                    style={[container, styles.marginTop, isOwner ? styles.ownMessage : styles.row]}
                     key={file.id}
                 >
                     <File
                         galleryIdentifier={galleryIdentifier}
                         key={file.id}
                         canDownloadFiles={canDownloadFiles}
-                        enableSecureFilePreview={enableSecureFilePreview}
                         file={file}
                         index={attachmentIndex(file.id!)}
                         onPress={handlePreviewPress}
                         isSingleImage={isSingleImage}
                         nonVisibleImagesCount={nonVisibleImagesCount}
+                        publicLinkEnabled={publicLinkEnabled}
                         updateFileForGallery={updateFileForGallery}
-                        wrapperWidth={layoutWidth || wrapperWidth}
+                        wrapperWidth={layoutWidth || (getViewPortWidth(isReplyPost, isTablet) - 6)}
                         inViewPort={inViewPort}
                     />
                 </View>
@@ -137,11 +133,8 @@ const Files = ({
         }
 
         return (
-            <View
-                style={[styles.row, {width: portraitPostWidth}]}
-                testID='image-row'
-            >
-                { renderItems(visibleImages, nonVisibleImagesCount, true) }
+            <View style={[isOwner ? styles.ownMessage : styles.row, {width: portraitPostWidth}]}>
+                {renderItems(visibleImages, nonVisibleImagesCount, true)}
             </View>
         );
     };
@@ -154,18 +147,11 @@ const Files = ({
         });
 
         return () => onScrollEnd.remove();
-    }, [location, postId]);
-
-    useEffect(() => {
-        setFilesForGallery([...imageAttachments, ...nonImageAttachments]);
-    }, [imageAttachments, nonImageAttachments]);
+    }, []);
 
     return (
         <GalleryInit galleryIdentifier={galleryIdentifier}>
-            <Animated.View
-                testID='files-container'
-                style={failed ? styles.failed : undefined}
-            >
+            <Animated.View style={[failed ? styles.failed : styles.ownMessage]}>
                 {renderImageRow()}
                 {renderItems(nonImageAttachments)}
             </Animated.View>

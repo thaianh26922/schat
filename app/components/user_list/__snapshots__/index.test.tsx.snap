@@ -561,7 +561,7 @@ exports[`components/channel_list_row should show no results 1`] = `
         }
       >
         <ActivityIndicator
-          color="#1c58d9"
+          color="#31b34b"
           size="large"
         />
       </View>
@@ -902,7 +902,7 @@ exports[`components/channel_list_row should show results and tutorial 1`] = `
         }
       >
         <ActivityIndicator
-          color="#1c58d9"
+          color="#31b34b"
           size="large"
         />
       </View>
@@ -1243,7 +1243,7 @@ exports[`components/channel_list_row should show results no tutorial 1`] = `
         }
       >
         <ActivityIndicator
-          color="#1c58d9"
+          color="#31b34b"
           size="large"
         />
       </View>
@@ -1862,7 +1862,7 @@ exports[`components/channel_list_row should show results no tutorial 2 users 1`]
         }
       >
         <ActivityIndicator
-          color="#1c58d9"
+          color="#31b34b"
           size="large"
         />
       </View>

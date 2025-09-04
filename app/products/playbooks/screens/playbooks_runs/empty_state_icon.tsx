@@ -19,7 +19,7 @@ export default function EmptyStateIcon() {
                     width='181'
                     height='78'
                     rx='5.625'
-                    fill='#1C58D9'
+                    fill='#31b34b'
                     fillOpacity='0.12'
                 />
                 <Path

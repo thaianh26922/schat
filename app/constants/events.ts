@@ -8,7 +8,6 @@ export default keyMirror({
     CHANNEL_ARCHIVED: null,
     CHANNEL_SWITCH: null,
     CLOSE_BOTTOM_SHEET: null,
-    CLOSE_GALLERY: null,
     CONFIG_CHANGED: null,
     FREEZE_SCREEN: null,
     GALLERY_ACTIONS: null,
@@ -32,7 +31,5 @@ export default keyMirror({
     SEND_TO_POST_DRAFT: null,
     CRT_TOGGLED: null,
     JOIN_CALL_BAR_VISIBLE: null,
-    DRAFT_SWIPEABLE: null,
-    ACTIVE_SCREEN: null,
-    FILE_ADD_REMOVED: null,
+    MESSAGE_RECIVE: null,
 });

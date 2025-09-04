@@ -35,6 +35,7 @@ type Theme = {
     mentionHighlightBg: string;
     mentionHighlightLink: string;
     codeTheme: string;
+    badge: string;
 };
 
 type ExtendedTheme = Theme & {[key: string]: string | undefined};

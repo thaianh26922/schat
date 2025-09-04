@@ -20,7 +20,7 @@ describe('getStatusColors', () => {
             warning: '#dede01',
             danger: '#d24b4e',
             default: '#3f4350',
-            primary: '#1c58d9',
+            primary: '#31b34b',
             success: '#3db887',
         };
 
